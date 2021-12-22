@@ -105,25 +105,41 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 	}
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
-	var compilerOutLine string
-	for _, compilerOutLine = range compilerOutLines {
-		if matched, _ := regexp.MatchString("Using core", compilerOutLine); matched { //TODO use compile
-			break // we can use compilerOutLine to get this line at the end of the loop
+	var coreLine string
+	var sketchLine string
+	coreRegex := regexp.MustCompile("Using core")
+	objFileRegex := regexp.MustCompile(`\s\S*[.]ino[.]cpp[.]o\s`) //TODO remove, does not work with escaped paths
+	for _, compilerOutLine := range compilerOutLines {
+		logrus.Info(compilerOutLine)
+		if matched := coreRegex.MatchString(compilerOutLine); matched {
+			coreLine = compilerOutLine
+		}
+		if matched := objFileRegex.FindString(compilerOutLine); matched != "" {
+			sketchLine = matched
 		}
 	}
-	if compilerOutLine == "" {
+	if coreLine == "" {
 		logrus.Fatal("cannot find core used")
+	}
+	if sketchLine == "" {
+		logrus.Fatal("cannot find object file")
 	}
 
 	returnJson := ReturnJson{
-		CoreInfo: parseCoreLine(compilerOutLine),
+		CoreInfo: parseCoreLine(coreLine),
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
-	logrus.Info(returnJson) // TODO remove
 
 	// TODO missing calculation of <sketch>.ino.o file
+	// TODO change approach and do not use regex: they don't work with escaped path
+	// Corrct approach: search for .ino.cpp.o, check the char right aftter `o` and search for the same character backwards,
+	// as soon as I find it i have the borders of the path
 
-	return nil, nil //TODO remove
+	// TODO there could be multiple `.o` files, see zube comment. The correct approach is to go in `<tempdir>/arduino-sketch_stuff/sketch` and copy all the `.o` files
+	// TODO add also the packager -> maybe ParseReference could be used from the cli
+	// TODO core could be calculated from fqbn
+
+	return nil, &returnJson //TODO remove
 }
 
 // parseCoreLine takes the line containig info regarding the core and
