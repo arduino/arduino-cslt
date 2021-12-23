@@ -87,7 +87,6 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	// check success=true
 	parseOutput(cmdOutput) // TODO save the return
 
 	// TODO:
@@ -102,6 +101,8 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 	err := json.Unmarshal(cmdOutToParse, &compileOutput)
 	if err != nil {
 		logrus.Fatal(err)
+	} else if !compileOutput.Success {
+		logrus.Fatalf("sketch compile was not successful %s", compileOutput.CompilerErr)
 	}
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
