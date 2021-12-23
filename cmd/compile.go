@@ -7,7 +7,6 @@ package cmd
 import (
 	"encoding/json"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -107,23 +106,22 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
 	var coreLine string
-	var sketchLine string
-	coreRegex := regexp.MustCompile("Using core")
-	objFileRegex := regexp.MustCompile(`\s\S*[.]ino[.]cpp[.]o\s`) //TODO remove, does not work with escaped paths
+	var objFilePath string
 	for _, compilerOutLine := range compilerOutLines {
 		logrus.Info(compilerOutLine)
-		if matched := coreRegex.MatchString(compilerOutLine); matched {
+		if matched := strings.Contains(compilerOutLine, "Using core"); matched {
 			coreLine = compilerOutLine
 		}
-		if matched := objFileRegex.FindString(compilerOutLine); matched != "" {
-			sketchLine = matched
+		if objFilePath = ParseObjFilePath(compilerOutLine); objFilePath != "" {
+			break // we should already have coreLine
 		}
+
 	}
 	if coreLine == "" {
 		logrus.Fatal("cannot find core used")
 	}
-	if sketchLine == "" {
-		logrus.Fatal("cannot find object file")
+	if objFilePath == "" {
+		logrus.Fatal("cannot find sketch object file")
 	}
 
 	returnJson := ReturnJson{
@@ -132,15 +130,29 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 	}
 
 	// TODO missing calculation of <sketch>.ino.o file
-	// TODO change approach and do not use regex: they don't work with escaped path
-	// Corrct approach: search for .ino.cpp.o, check the char right aftter `o` and search for the same character backwards,
-	// as soon as I find it i have the borders of the path
-
 	// TODO there could be multiple `.o` files, see zube comment. The correct approach is to go in `<tempdir>/arduino-sketch_stuff/sketch` and copy all the `.o` files
 	// TODO add also the packager -> maybe ParseReference could be used from the cli
 	// TODO core could be calculated from fqbn
 
 	return nil, &returnJson //TODO remove
+}
+
+func ParseObjFilePath(compilerOutLine string) (objFilePath string) {
+	var endChar string
+	if index := strings.Index(compilerOutLine, ".ino.cpp.o"); index != -1 {
+		sketchEndIndex := index + len(".ino.cpp.o")
+		if sketchEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the last character is space
+			endChar = " "
+		} else {
+			endChar = string(compilerOutLine[sketchEndIndex])
+		}
+		// TODO see conversation with silvano: if endchar is preceded by / proceed in the search
+		sketchStartIndex := strings.LastIndex(compilerOutLine[:sketchEndIndex], endChar) + 1
+		objFilePath = compilerOutLine[sketchStartIndex:sketchEndIndex]
+		return objFilePath
+	} else {
+		return ""
+	}
 }
 
 // parseCoreLine takes the line containig info regarding the core and
