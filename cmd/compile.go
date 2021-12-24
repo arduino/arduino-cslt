@@ -137,18 +137,24 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 	return nil, &returnJson //TODO remove
 }
 
+// ParseObjFilePath is a function that takes a line from the compiler output
+// it returns a string with the path of the object file generated during the compile process
+//(recognizing it by .ino.cpp.o extension) if the extension is found in the string, "" otherwise
 func ParseObjFilePath(compilerOutLine string) (objFilePath string) {
 	var endChar string
 	if index := strings.Index(compilerOutLine, ".ino.cpp.o"); index != -1 {
 		sketchEndIndex := index + len(".ino.cpp.o")
-		if sketchEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the last character is space
-			endChar = " "
+		if sketchEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the end character is space
+			endChar = " " // we set it this way to avoid index out of bound
 		} else {
 			endChar = string(compilerOutLine[sketchEndIndex])
 		}
-		// TODO see conversation with silvano: if endchar is preceded by / proceed in the search
-		sketchStartIndex := strings.LastIndex(compilerOutLine[:sketchEndIndex], endChar) + 1
-		objFilePath = compilerOutLine[sketchStartIndex:sketchEndIndex]
+		sketchStartIndex := strings.LastIndex(compilerOutLine[:sketchEndIndex], endChar)
+		// we continue to search if the endChar is preceded by backslash (this means the endChar it's escaped)
+		for string(compilerOutLine[sketchStartIndex-1]) == `\` {
+			sketchStartIndex = strings.LastIndex(compilerOutLine[:sketchStartIndex], endChar)
+		}
+		objFilePath = compilerOutLine[sketchStartIndex+1 : sketchEndIndex]
 		return objFilePath
 	} else {
 		return ""
