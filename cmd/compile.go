@@ -28,27 +28,20 @@ type CompileOutput struct {
 }
 
 type BuilderResult struct {
-	BuildPath     string     `json:"build_path"`
-	UsedLibraries []*LibInfo `json:"used_libraries"`
+	BuildPath     string  `json:"build_path"`
+	UsedLibraries []*Info `json:"used_libraries"`
 }
 
-// coreInfo contains information regarding the core used during the compile process
-type CoreInfo struct {
-	// corePackager string `json: "CorePackager"`
-	CoreName    string `json:"coreName"`
-	CoreVersion string `json:"coreVersion"`
-}
-
-// LibInfo contains information regarding the library used during the compile process
-type LibInfo struct {
-	LibName    string `json:"name"`
-	LibVersion string `json:"version"`
+// Info contains information regarding the library or the core used during the compile process
+type Info struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // returnJson contains information regarding the core and libraries used during the compile process
 type ReturnJson struct {
-	CoreInfo *CoreInfo  `json:"coreInfo"`
-	LibsInfo []*LibInfo `json:"libsInfo"`
+	CoreInfo *Info   `json:"coreInfo"`
+	LibsInfo []*Info `json:"libsInfo"`
 }
 
 // compileCmd represents the compile command
@@ -174,7 +167,7 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 
 // parseCoreLine takes the line containig info regarding the core and
 // returns a coreInfo object
-func parseCoreLine(coreLine string) *CoreInfo {
+func parseCoreLine(coreLine string) *Info {
 	words := strings.Split(coreLine, " ")
 	strCorePath := words[len(words)-1] // last string has the path of the core
 	// maybe check if the path is legit before and logrus.Fatal if not
@@ -182,9 +175,9 @@ func parseCoreLine(coreLine string) *CoreInfo {
 	version := corePath.Base()
 	name := corePath.Parent().Base()
 	logrus.Debugf("core name: %s, core version: %s", name, version)
-	coreInfo := &CoreInfo{
-		CoreName:    name,
-		CoreVersion: version,
+	coreInfo := &Info{
+		Name:    name,
+		Version: version,
 	}
 	return coreInfo
 }
