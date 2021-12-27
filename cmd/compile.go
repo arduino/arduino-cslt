@@ -28,6 +28,7 @@ type CompileOutput struct {
 }
 
 type BuilderResult struct {
+	BuildPath     string     `json:"build_path"`
 	UsedLibraries []*LibInfo `json:"used_libraries"`
 }
 
@@ -86,7 +87,7 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	objFilePath, returnJson := parseOutput(cmdOutput)
+	objFilesPaths, returnJson := parseOutput(cmdOutput)
 
 	workingDir, err := paths.Getwd()
 	if err != nil {
@@ -100,11 +101,13 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	}
 
 	// Copy the object files from the `<tempdir>/arduino-sketch_stuff/sketch` folder
-	destObjFilePath := buildDir.Join(objFilePath.Base())
-	if err = objFilePath.CopyTo(destObjFilePath); err != nil {
-		logrus.Errorf("error copying object file: %s", err)
-	} else {
-		logrus.Infof("copied file to %s", destObjFilePath)
+	for _, objFilePath := range objFilesPaths {
+		destObjFilePath := buildDir.Join(objFilePath.Base())
+		if err = objFilePath.CopyTo(destObjFilePath); err != nil {
+			logrus.Errorf("error copying object file: %s", err)
+		} else {
+			logrus.Infof("copied file to %s", destObjFilePath)
+		}
 	}
 
 	// save the result.json in the build dir
@@ -116,14 +119,13 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	} else {
 		logrus.Infof("created new file in: %s", jsonFilePath)
 	}
-
 }
 
 // parseOutput function takes cmdOutToParse as argument,
 // cmdOutToParse is the output captured from the command run
-// the function extract the path of the sketck.ino.o and
-// a returnJson object
-func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
+// the function extract the paths of the .o files and
+// a ReturnJson object
+func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	err := json.Unmarshal(cmdOutToParse, &compileOutput)
 	if err != nil {
 		logrus.Fatal(err)
@@ -133,27 +135,30 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
 	var coreLine string
-	var objFile string
 	for _, compilerOutLine := range compilerOutLines {
 		logrus.Debug(compilerOutLine)
 		if matched := strings.Contains(compilerOutLine, "Using core"); matched {
 			coreLine = compilerOutLine
-		}
-		if objFile = ParseObjFilePath(compilerOutLine); objFile != "" {
 			break // we should already have coreLine
 		}
-
 	}
 	if coreLine == "" {
 		logrus.Fatal("cannot find core used")
 	}
-	if objFile == "" {
-		logrus.Fatal("cannot find sketch object file")
-	}
 
-	objFilePath := paths.New(objFile)
-	if objFilePath == nil {
-		logrus.Fatal("path cannot be created")
+	// this dir contains all the obj files we need (the sketch related ones and not the core or libs)
+	sketchDir := paths.New(compileOutput.BuilderResult.BuildPath).Join("sketch")
+	sketchFilesPaths, err := sketchDir.ReadDir()
+	if err != nil {
+		logrus.Fatal(err)
+	} else if sketchFilesPaths == nil {
+		logrus.Fatalf("empty directory: %s", sketchDir)
+	}
+	var returnObjectFilesList []*paths.Path
+	for _, sketchFilePath := range sketchFilesPaths {
+		if sketchFilePath.Ext() == ".o" {
+			returnObjectFilesList = append(returnObjectFilesList, sketchFilePath)
+		}
 	}
 
 	returnJson := ReturnJson{
@@ -161,36 +166,10 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
-	// TODO there could be multiple `.o` files, see zube comment. The correct approach is to go in `<tempdir>/arduino-sketch_stuff/sketch` and copy all the `.o` files
 	// TODO add also the packager -> maybe ParseReference could be used from the cli
 	// TODO core could be calculated from fqbn
 
-	return objFilePath, &returnJson
-}
-
-// ParseObjFilePath is a function that takes a line from the compiler output
-// it returns a string with the path of the object file generated during the compile process
-//(recognizing it by .ino.cpp.o extension) if the extension is found in the string, "" otherwise
-func ParseObjFilePath(compilerOutLine string) (objFilePath string) {
-	var endChar string
-	extension := ".ino.cpp.o"
-	if extensionIndex := strings.Index(compilerOutLine, extension); extensionIndex != -1 {
-		objFileEndIndex := extensionIndex + len(extension)
-		if objFileEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the end character is space
-			endChar = " " // we set it this way to avoid index out of bound
-		} else {
-			endChar = string(compilerOutLine[objFileEndIndex])
-		}
-		objFileStartIndex := strings.LastIndex(compilerOutLine[:objFileEndIndex], endChar)
-		// we continue to search if the endChar is preceded by backslash (this means the endChar it's escaped and thus is not an endChar :D)
-		for string(compilerOutLine[objFileStartIndex-1]) == `\` {
-			objFileStartIndex = strings.LastIndex(compilerOutLine[:objFileStartIndex], endChar)
-		}
-		objFilePath = compilerOutLine[objFileStartIndex+1 : objFileEndIndex]
-		return objFilePath
-	} else {
-		return ""
-	}
+	return returnObjectFilesList, &returnJson
 }
 
 // parseCoreLine takes the line containig info regarding the core and
