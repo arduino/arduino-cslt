@@ -86,10 +86,37 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	parseOutput(cmdOutput) // TODO save the return
+	objFilePath, returnJson := parseOutput(cmdOutput)
 
-	// TODO:
-	// copy sketch.ino.o from tmp/... in current dir or in --output dir
+	workingDir, err := paths.Getwd()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	buildDir := workingDir.Join("build")
+	if !buildDir.Exist() {
+		if err = buildDir.Mkdir(); err != nil {
+			logrus.Fatal(err)
+		}
+	}
+
+	// Copy the object files from the `<tempdir>/arduino-sketch_stuff/sketch` folder
+	destObjFilePath := buildDir.Join(objFilePath.Base())
+	if err = objFilePath.CopyTo(destObjFilePath); err != nil {
+		logrus.Errorf("error copying object file: %s", err)
+	} else {
+		logrus.Infof("copied file to %s", destObjFilePath)
+	}
+
+	// save the result.json in the build dir
+	jsonFilePath := buildDir.Join("result.json")
+	if jsonContents, err := json.MarshalIndent(returnJson, "", " "); err != nil {
+		logrus.Errorf("error serializing json: %s", err)
+	} else if err := jsonFilePath.WriteFile(jsonContents); err != nil {
+		logrus.Errorf("error writing result.json: %s", err)
+	} else {
+		logrus.Infof("created new file in: %s", jsonFilePath)
+	}
+
 }
 
 // parseOutput function takes cmdOutToParse as argument,
@@ -106,13 +133,13 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
 	var coreLine string
-	var objFilePath string
+	var objFile string
 	for _, compilerOutLine := range compilerOutLines {
-		logrus.Info(compilerOutLine)
+		logrus.Debug(compilerOutLine)
 		if matched := strings.Contains(compilerOutLine, "Using core"); matched {
 			coreLine = compilerOutLine
 		}
-		if objFilePath = ParseObjFilePath(compilerOutLine); objFilePath != "" {
+		if objFile = ParseObjFilePath(compilerOutLine); objFile != "" {
 			break // we should already have coreLine
 		}
 
@@ -120,8 +147,13 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 	if coreLine == "" {
 		logrus.Fatal("cannot find core used")
 	}
-	if objFilePath == "" {
+	if objFile == "" {
 		logrus.Fatal("cannot find sketch object file")
+	}
+
+	objFilePath := paths.New(objFile)
+	if objFilePath == nil {
+		logrus.Fatal("path cannot be created")
 	}
 
 	returnJson := ReturnJson{
@@ -129,12 +161,11 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
-	// TODO missing calculation of <sketch>.ino.o file
 	// TODO there could be multiple `.o` files, see zube comment. The correct approach is to go in `<tempdir>/arduino-sketch_stuff/sketch` and copy all the `.o` files
 	// TODO add also the packager -> maybe ParseReference could be used from the cli
 	// TODO core could be calculated from fqbn
 
-	return nil, &returnJson //TODO remove
+	return objFilePath, &returnJson
 }
 
 // ParseObjFilePath is a function that takes a line from the compiler output
@@ -142,19 +173,20 @@ func parseOutput(cmdOutToParse []byte) (*paths.Path, *ReturnJson) {
 //(recognizing it by .ino.cpp.o extension) if the extension is found in the string, "" otherwise
 func ParseObjFilePath(compilerOutLine string) (objFilePath string) {
 	var endChar string
-	if index := strings.Index(compilerOutLine, ".ino.cpp.o"); index != -1 {
-		sketchEndIndex := index + len(".ino.cpp.o")
-		if sketchEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the end character is space
+	extension := ".ino.cpp.o"
+	if extensionIndex := strings.Index(compilerOutLine, extension); extensionIndex != -1 {
+		objFileEndIndex := extensionIndex + len(extension)
+		if objFileEndIndex >= len(compilerOutLine) { // this means the path terminates with the `o` and thus the end character is space
 			endChar = " " // we set it this way to avoid index out of bound
 		} else {
-			endChar = string(compilerOutLine[sketchEndIndex])
+			endChar = string(compilerOutLine[objFileEndIndex])
 		}
-		sketchStartIndex := strings.LastIndex(compilerOutLine[:sketchEndIndex], endChar)
-		// we continue to search if the endChar is preceded by backslash (this means the endChar it's escaped)
-		for string(compilerOutLine[sketchStartIndex-1]) == `\` {
-			sketchStartIndex = strings.LastIndex(compilerOutLine[:sketchStartIndex], endChar)
+		objFileStartIndex := strings.LastIndex(compilerOutLine[:objFileEndIndex], endChar)
+		// we continue to search if the endChar is preceded by backslash (this means the endChar it's escaped and thus is not an endChar :D)
+		for string(compilerOutLine[objFileStartIndex-1]) == `\` {
+			objFileStartIndex = strings.LastIndex(compilerOutLine[:objFileStartIndex], endChar)
 		}
-		objFilePath = compilerOutLine[sketchStartIndex+1 : sketchEndIndex]
+		objFilePath = compilerOutLine[objFileStartIndex+1 : objFileEndIndex]
 		return objFilePath
 	} else {
 		return ""
