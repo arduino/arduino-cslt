@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -34,8 +35,9 @@ type BuilderResult struct {
 
 // Info contains information regarding the library or the core used during the compile process
 type Info struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Packager string `json:"packager,omitempty"`
+	Name     string `json:"name"`
+	Version  string `json:"version"`
 }
 
 // returnJson contains information regarding the core and libraries used during the compile process
@@ -48,11 +50,11 @@ type ReturnJson struct {
 var compileCmd = &cobra.Command{
 	Use:   "compile",
 	Short: "Compiles Arduino sketches.",
-	Long: `Compiles Arduino sketches outputting an object file and a json file
-	The json contains information regarding libraries and core to use to build the full sketch`,
-	// Example: , // TODO
-	Args: cobra.ExactArgs(1), // the path of the sketch to build
-	Run:  compileSketch,
+	Long: `Compiles Arduino sketches outputting an object file and a json file in a build directory
+	The json contains information regarding libraries and core to use in order to build the sketch`,
+	Example: os.Args[0] + `compile -b arduino:avr:uno /home/umberto/Arduino/Blink`,
+	Args:    cobra.ExactArgs(1), // the path of the sketch to build
+	Run:     compileSketch,
 }
 
 func init() {
@@ -115,15 +117,15 @@ func compileSketch(cmd *cobra.Command, args []string) {
 }
 
 // parseOutput function takes cmdOutToParse as argument,
-// cmdOutToParse is the output captured from the command run
-// the function extract the paths of the .o files and
-// a ReturnJson object
+// cmdOutToParse is the json output captured from the command run
+// the function extracts and returns the paths of the .o files
+// (generated during the compile phase) and a ReturnJson object
 func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	err := json.Unmarshal(cmdOutToParse, &compileOutput)
 	if err != nil {
 		logrus.Fatal(err)
 	} else if !compileOutput.Success {
-		logrus.Fatalf("sketch compile was not successful %s", compileOutput.CompilerErr)
+		logrus.Fatalf("sketch compile was not successful: %s", compileOutput.CompilerErr)
 	}
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
@@ -144,7 +146,7 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	sketchFilesPaths, err := sketchDir.ReadDir()
 	if err != nil {
 		logrus.Fatal(err)
-	} else if sketchFilesPaths == nil {
+	} else if len(sketchFilesPaths) == 0 {
 		logrus.Fatalf("empty directory: %s", sketchDir)
 	}
 	var returnObjectFilesList []*paths.Path
@@ -159,25 +161,23 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
-	// TODO add also the packager -> maybe ParseReference could be used from the cli
-	// TODO core could be calculated from fqbn
-
 	return returnObjectFilesList, &returnJson
 }
 
-// parseCoreLine takes the line containig info regarding the core and
-// returns a coreInfo object
+// parseCoreLine takes the line containing info regarding the core and
+// returns a Info object
 func parseCoreLine(coreLine string) *Info {
 	words := strings.Split(coreLine, " ")
 	strCorePath := words[len(words)-1] // last string has the path of the core
-	// maybe check if the path is legit before and logrus.Fatal if not
 	corePath := paths.New(strCorePath)
-	version := corePath.Base()
-	name := corePath.Parent().Base()
-	logrus.Debugf("core name: %s, core version: %s", name, version)
+	if !corePath.Exist() {
+		logrus.Fatalf("the path of the core does not exists: %s", corePath)
+	}
+	corePathParents := corePath.Parents()
 	coreInfo := &Info{
-		Name:    name,
-		Version: version,
+		Packager: corePathParents[3].Base(),
+		Name:     corePathParents[1].Base(),
+		Version:  corePathParents[0].Base(),
 	}
 	return coreInfo
 }
