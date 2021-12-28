@@ -129,16 +129,15 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	}
 
 	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
-	var coreLine string
+	var platformPath *paths.Path
 	for _, compilerOutLine := range compilerOutLines {
 		logrus.Debug(compilerOutLine)
-		if matched := strings.Contains(compilerOutLine, "Using core"); matched {
-			coreLine = compilerOutLine
-			break // we should already have coreLine
+		if platformPath = parsePlatformLine(compilerOutLine); platformPath != nil {
+			break
 		}
 	}
-	if coreLine == "" {
-		logrus.Fatal("cannot find core used")
+	if platformPath == nil {
+		logrus.Fatal("cannot find platform used")
 	}
 
 	// this dir contains all the obj files we need (the sketch related ones and not the core or libs)
@@ -157,27 +156,40 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	}
 
 	returnJson := ReturnJson{
-		CoreInfo: parseCoreLine(coreLine),
+		CoreInfo: getCoreInfo(platformPath),
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
 	return returnObjectFilesList, &returnJson
 }
 
-// parseCoreLine takes the line containing info regarding the core and
-// returns a Info object
-func parseCoreLine(coreLine string) *Info {
-	words := strings.Split(coreLine, " ")
-	strCorePath := words[len(words)-1] // last string has the path of the core
-	corePath := paths.New(strCorePath)
-	if !corePath.Exist() {
-		logrus.Fatalf("the path of the core does not exists: %s", corePath)
+// getCoreInfo takes the path of the platform used and
+// returns an Info object
+func getCoreInfo(platformPath *paths.Path) *Info {
+	if !platformPath.Exist() {
+		logrus.Fatalf("the path of the core does not exists: %s", platformPath)
 	}
-	corePathParents := corePath.Parents()
+	corePathParents := platformPath.Parents()
 	coreInfo := &Info{
 		Packager: corePathParents[3].Base(),
 		Name:     corePathParents[1].Base(),
 		Version:  corePathParents[0].Base(),
 	}
 	return coreInfo
+}
+
+// parsePlatformLine takes compilerOutLine as input and tries to extract the path of the platform used
+// compilerOutLine should be something like:
+// - Using core 'arduino' from platform in folder: C:\\Users\\Umberto Baldi\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.5\n
+// - Using core 'arduino' from platform in folder: /home/umberto/.arduino15/packages/arduino/hardware/avr/1.8.4
+
+func parsePlatformLine(compilerOutLine string) *paths.Path {
+	if matched := strings.Contains(compilerOutLine, "Using core"); matched {
+		// we use this approach to avoid path with spaces problem
+		if startIndex := strings.Index(compilerOutLine, "from platform in folder: "); startIndex != -1 {
+			startIndex = startIndex + len("from platform in folder: ")
+			return paths.New(compilerOutLine[startIndex:])
+		}
+	}
+	return nil
 }
