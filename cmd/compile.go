@@ -8,42 +8,43 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
-var (
-	fqbn          string
-	compileOutput CompileOutput
-)
+var fqbn string
 
 // compileOutput represents the json returned by the arduino-cli compile command
 type CompileOutput struct {
-	CompilerOut   string         `json:"compiler_out"`
 	CompilerErr   string         `json:"compiler_err"`
 	BuilderResult *BuilderResult `json:"builder_result"`
 	Success       bool           `json:"success"`
 }
 
 type BuilderResult struct {
-	BuildPath     string  `json:"build_path"`
-	UsedLibraries []*Info `json:"used_libraries"`
+	BuildPath     string         `json:"build_path"`
+	UsedLibraries []*UsedLibrary `json:"used_libraries"`
+	BuildPlatform *BuildPlatform `json:"build_platform"`
 }
 
-// Info contains information regarding the library or the core used during the compile process
-type Info struct {
-	Packager string `json:"packager,omitempty"`
-	Name     string `json:"name"`
-	Version  string `json:"version"`
+// UsedLibrary contains information regarding the library used during the compile process
+type UsedLibrary struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// BuildPlatform contains information regarding the platform used during the compile process
+type BuildPlatform struct {
+	Id      string `json:"id"`
+	Version string `json:"version"`
 }
 
 // returnJson contains information regarding the core and libraries used during the compile process
 type ReturnJson struct {
-	CoreInfo *Info   `json:"coreInfo"`
-	LibsInfo []*Info `json:"libsInfo"`
+	CoreInfo *BuildPlatform `json:"coreInfo"`
+	LibsInfo []*UsedLibrary `json:"libsInfo"`
 }
 
 // compileCmd represents the compile command
@@ -121,23 +122,12 @@ func compileSketch(cmd *cobra.Command, args []string) {
 // the function extracts and returns the paths of the .o files
 // (generated during the compile phase) and a ReturnJson object
 func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
+	var compileOutput CompileOutput
 	err := json.Unmarshal(cmdOutToParse, &compileOutput)
 	if err != nil {
 		logrus.Fatal(err)
 	} else if !compileOutput.Success {
 		logrus.Fatalf("sketch compile was not successful: %s", compileOutput.CompilerErr)
-	}
-
-	compilerOutLines := strings.Split(compileOutput.CompilerOut, "\n")
-	var platformPath *paths.Path
-	for _, compilerOutLine := range compilerOutLines {
-		logrus.Debug(compilerOutLine)
-		if platformPath = parsePlatformLine(compilerOutLine); platformPath != nil {
-			break
-		}
-	}
-	if platformPath == nil {
-		logrus.Fatal("cannot find platform used")
 	}
 
 	// this dir contains all the obj files we need (the sketch related ones and not the core or libs)
@@ -156,40 +146,9 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	}
 
 	returnJson := ReturnJson{
-		CoreInfo: getCoreInfo(platformPath),
+		CoreInfo: compileOutput.BuilderResult.BuildPlatform,
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
 	return returnObjectFilesList, &returnJson
-}
-
-// getCoreInfo takes the path of the platform used and
-// returns an Info object
-func getCoreInfo(platformPath *paths.Path) *Info {
-	if !platformPath.Exist() {
-		logrus.Fatalf("the path of the core does not exists: %s", platformPath)
-	}
-	corePathParents := platformPath.Parents()
-	coreInfo := &Info{
-		Packager: corePathParents[3].Base(),
-		Name:     corePathParents[1].Base(),
-		Version:  corePathParents[0].Base(),
-	}
-	return coreInfo
-}
-
-// parsePlatformLine takes compilerOutLine as input and tries to extract the path of the platform used
-// compilerOutLine should be something like:
-// - Using core 'arduino' from platform in folder: C:\\Users\\Umberto Baldi\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.5\n
-// - Using core 'arduino' from platform in folder: /home/umberto/.arduino15/packages/arduino/hardware/avr/1.8.4
-
-func parsePlatformLine(compilerOutLine string) *paths.Path {
-	if matched := strings.Contains(compilerOutLine, "Using core"); matched {
-		// we use this approach to avoid path with spaces problem
-		if startIndex := strings.Index(compilerOutLine, "from platform in folder: "); startIndex != -1 {
-			startIndex = startIndex + len("from platform in folder: ")
-			return paths.New(compilerOutLine[startIndex:])
-		}
-	}
-	return nil
 }

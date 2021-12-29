@@ -5,6 +5,7 @@ The json contains information regarding libraries and core to use in order to bu
 
 ## Requisites
 In order to run this tool you have to install first the [arduino-cli](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your path, otherwise `cslt-tool` won't work.
+Please use a version of the cli that has [this](https://github.com/arduino/arduino-cli/pull/1608) change, version > 0.20.2
 
 ## Build it
 In order to build it just use `go build`
@@ -15,7 +16,7 @@ In order to build it just use `go build`
 This is an example execution:
 ``` bash
 $ ./cslt-tool compile -b arduino:samd:mkrwan1310 /home/umberto/getdeveui
-INFO[0001] arduino-cli version: 0.20.2                  
+INFO[0001] arduino-cli version: git-snapshot                  
 INFO[0001] running: arduino-cli compile -b arduino:samd:mkrwan1310 /home/umberto/getdeveui -v --format json 
 INFO[0002] copied file to /home/umberto/Nextcloud/8tb/Lavoro/cslt-tool/build/getdeveui.ino.cpp.o 
 INFO[0002] created new file in: /home/umberto/Nextcloud/8tb/Lavoro/cslt-tool/build/result.json
@@ -30,8 +31,7 @@ And the content of `build/result.json` is:
 ```json
 {
  "coreInfo": {
-  "packager": "arduino",
-  "name": "samd",
+  "id": "arduino:samd",
   "version": "1.8.12"
  },
  "libsInfo": [
