@@ -41,8 +41,8 @@ type BuildPlatform struct {
 	Version string `json:"version"`
 }
 
-// returnJson contains information regarding the core and libraries used during the compile process
-type ReturnJson struct {
+// ResultJson contains information regarding the core and libraries used during the compile process
+type ResultJson struct {
 	CoreInfo *BuildPlatform `json:"coreInfo"`
 	LibsInfo []*UsedLibrary `json:"libsInfo"`
 }
@@ -121,7 +121,7 @@ func compileSketch(cmd *cobra.Command, args []string) {
 // cmdOutToParse is the json output captured from the command run
 // the function extracts and returns the paths of the .o files
 // (generated during the compile phase) and a ReturnJson object
-func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
+func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ResultJson) {
 	var compileOutput CompileOutput
 	err := json.Unmarshal(cmdOutToParse, &compileOutput)
 	if err != nil {
@@ -138,17 +138,12 @@ func parseOutput(cmdOutToParse []byte) ([]*paths.Path, *ReturnJson) {
 	} else if len(sketchFilesPaths) == 0 {
 		logrus.Fatalf("empty directory: %s", sketchDir)
 	}
-	var returnObjectFilesList []*paths.Path
-	for _, sketchFilePath := range sketchFilesPaths {
-		if sketchFilePath.Ext() == ".o" {
-			returnObjectFilesList = append(returnObjectFilesList, sketchFilePath)
-		}
-	}
+	sketchFilesPaths.FilterSuffix(".o")
 
-	returnJson := ReturnJson{
+	returnJson := ResultJson{
 		CoreInfo: compileOutput.BuilderResult.BuildPlatform,
 		LibsInfo: compileOutput.BuilderResult.UsedLibraries,
 	}
 
-	return returnObjectFilesList, &returnJson
+	return sketchFilesPaths, &returnJson
 }
