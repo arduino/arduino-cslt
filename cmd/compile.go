@@ -34,8 +34,9 @@ type BuilderResult struct {
 
 // UsedLibrary contains information regarding the library used during the compile process
 type UsedLibrary struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name             string   `json:"name"`
+	Version          string   `json:"version"`
+	ProvidesIncludes []string `json:"provides_includes"`
 }
 
 // BuildPlatform contains information regarding the platform used during the compile process
@@ -80,10 +81,10 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	json.Unmarshal(cmdOutput, &unmarshalledOutput)
 	logrus.Infof("arduino-cli version: %s", unmarshalledOutput["VersionString"])
 
-	// let's check if ar is installed on the users machine
-	cmdOutput, err = exec.Command("ar", "--version").Output()
+	// let's check if gcc-ar is installed on the users machine
+	cmdOutput, err = exec.Command("gcc-ar", "--version").CombinedOutput()
 	if err != nil {
-		logrus.Warn("Before running this tool be sure to have \"GNU ar\" installed in your $PATH")
+		logrus.Warn("Before running this tool be sure to have \"gcc-ar\" installed in your $PATH")
 		logrus.Fatal(err)
 	}
 	logrus.Infof(strings.Split(string(cmdOutput), "\n")[0]) // print the version of ar
@@ -110,8 +111,8 @@ func compileSketch(cmd *cobra.Command, args []string) {
 
 	// create a main.cpp file in the same dir of the sketch.ino
 	// the main.cpp contains the following:
-	mainCpp := `
-#include "Arduino.h"
+	mainCpp :=
+		`#include "Arduino.h"
 void _setup();
 void _loop();
 
@@ -128,9 +129,10 @@ _loop();
 		logrus.Fatal(err)
 	}
 	logrus.Infof("created %s", mainCppPath)
+	// TODO remove the cpp file after the compile
 
 	// replace setup() with _setup() and loop() with _loop() in the user's sketch.ino file
-	// TODO make a backup copy of the sketch and restore it at the end (we have it in input var)
+	// TODO make a backup copy of the sketch and restore it after the compile (we have it in input var)
 	input, err := ioutil.ReadFile(inoPath.String())
 	if err != nil {
 		logrus.Fatal(err)
@@ -153,14 +155,25 @@ _loop();
 
 	// let's call arduino-cli compile and parse the verbose output
 	cmdArgs := []string{"compile", "-b", fqbn, inoPath.String(), "-v", "--format", "json"}
-	logrus.Infof("running: arduino-cli %s", cmdArgs)
+	logrus.Infof("running: arduino-cli %s", strings.Join(cmdArgs, " "))
 	cmdOutput, err = exec.Command("arduino-cli", cmdArgs...).Output()
 	if err != nil {
 		logrus.Fatal(err)
 	}
 	objFilesPaths, returnJson := parseCliCompileOutput(cmdOutput)
 
-	// TODO remove the main.cpp file and restore the sketch ino file
+	// this is done to get the {build.mcu} used later to create the lib dir structure
+	// the --show-properties will only print on stdout and not compiling
+	// the json output is currently broken with this flag, see https://github.com/arduino/arduino-cli/issues/1628
+	cmdArgs = []string{"compile", "-b", fqbn, inoPath.String(), "--show-properties"}
+	logrus.Infof("running: arduino-cli %s", strings.Join(cmdArgs, " "))
+	cmdOutput, err = exec.Command("arduino-cli", cmdArgs...).Output()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	buildMcu := parseCliCompileOutputShowProp(cmdOutput)
+
+	// TODO remove the main.cpp file and restore the original sketch ino file
 
 	// we are going to leverage the precompiled library infrastructure to make the linking work.
 	// this type of lib, as the type suggest, is already compiled so it only gets linked during the linking phase of a sketch
@@ -174,12 +187,14 @@ _loop();
 	//     ├── cortex-m0plus
 	//     │   └── libsketch.a
 	//     └── libsketch.h
-	libName := strings.ToLower(inoPath.Base())
+
+	// let's create the dir structure
+	sketchName := strings.ToLower(strings.TrimSuffix(inoPath.Base(), inoPath.Ext()))
 	workingDir, err := paths.Getwd()
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	libDir := workingDir.Join("lib" + libName)
+	libDir := workingDir.Join("lib" + sketchName)
 	if libDir.Exist() { // if the dir already exixst we clean it before
 		os.RemoveAll(libDir.String())
 		logrus.Warn("removed %s", libDir)
@@ -187,32 +202,96 @@ _loop();
 	if err = libDir.Mkdir(); err != nil {
 		logrus.Fatal(err)
 	}
+	srcDir := libDir.Join("src").Join(buildMcu)
+	if err = srcDir.MkdirAll(); err != nil {
+		logrus.Fatal(err)
+	}
+	exampleDir := libDir.Join("examples").Join(sketchName)
+	if err = exampleDir.MkdirAll(); err != nil {
+		logrus.Fatal(err)
+	}
+	extraDir := libDir.Join("extra")
+	if err = extraDir.Mkdir(); err != nil {
+		logrus.Fatal(err)
+	}
 
-	// run ar to create an archive containing all the object files except the main.cpp.o (we'll create it later)
-	// we exclude the main.cpp.o because we are going to link the archive libsjetch.a against another main.cpp
-	objFilesPaths.FilterOutPrefix("main.cpp")
-	// TODO use the correct name for the archive
-	cmdArgs = append([]string{"rcs", buildDir.Join("libsketch.a").String()}, objFilesPaths.AsStrings()...)
-	logrus.Infof("running: ar %s", cmdArgs)
-	cmdOutput, _ = exec.Command("ar", cmdArgs...).Output()
-	logrus.Print(cmdOutput)
+	// let's create the files
 
-	// Copy the object files from the `<tempdir>/arduino-sketch_stuff/sketch` folder
-	for _, objFilePath := range objFilesPaths {
-		destObjFilePath := buildDir.Join(objFilePath.Base())
-		if err = objFilePath.CopyTo(destObjFilePath); err != nil {
-			logrus.Errorf("error copying object file: %s", err)
-		} else {
-			logrus.Infof("copied file to %s", destObjFilePath)
+	// create a library.properties file in the root dir of the lib
+	// the library.properties contains the following:
+	libraryProperties :=
+		`name=` + sketchName + `
+version=1.0
+precompiled=true
+`
+	libraryPropertyPath := libDir.Join("library.properties").String()
+	err = os.WriteFile(libraryPropertyPath, []byte(libraryProperties), 0644)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("created %s", libraryPropertyPath)
+
+	// we calculate the #include part to append at the beginning of the header file here
+	var librariesIncludes []string
+	for _, lib := range returnJson.LibsInfo {
+		for _, include := range lib.ProvidesIncludes {
+			librariesIncludes = append(librariesIncludes, "#include \""+include+"\"")
 		}
 	}
 
-	// save the result.json in the build dir
-	jsonFilePath := buildDir.Join("result.json")
+	// create the header file in the src/ dir
+	// This file has predeclarations of _setup() and _loop() functions declared originally in the main.cpp file (which is not included in the archive),
+	// It is the counterpart of libsketch.a
+	// the libsketch.h contains the following:
+	libsketchHeader := strings.Join(librariesIncludes, "\n") + `
+void _setup();
+void _loop();`
+	libsketchFilePath := srcDir.Parent().Join("lib" + sketchName + ".h").String()
+	err = os.WriteFile(libsketchFilePath, []byte(libsketchHeader), 0644)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("created %s", libsketchFilePath)
+
+	// create the sketch file in the example dir of the lib
+	// This one will include the libsketch.h and basically is the replacement of main.cpp
+	// the sketch.ino contains the following:
+	sketchFile :=
+		`#include <` + "lib" + sketchName + `.h>
+void setup() {
+	_setup();
+}
+void loop() {
+	_loop();
+}`
+	sketchFilePath := exampleDir.Join(sketchName + ".ino").String()
+	err = os.WriteFile(sketchFilePath, []byte(sketchFile), 0644)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("created %s", sketchFilePath)
+
+	// run gcc-ar to create an archive containing all the object files except the main.cpp.o (we'll create it later)
+	// we exclude the main.cpp.o because we are going to link the archive libsketch.a against another main.cpp
+	objFilesPaths.FilterOutPrefix("main.cpp")
+	archivePath := srcDir.Join("lib" + sketchName + ".a")
+	cmdArgs = append([]string{"rcs", archivePath.String()}, objFilesPaths.AsStrings()...)
+	logrus.Infof("running: gcc-ar %s", cmdArgs)
+	cmdOutput, err = exec.Command("gcc-ar", cmdArgs...).CombinedOutput()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if len(cmdOutput) != 0 {
+		logrus.Info(string(cmdOutput))
+	} else {
+		logrus.Infof("created %s", archivePath)
+	}
+	// save the result.json in the library extra dir
+	jsonFilePath := extraDir.Join("result.json")
 	if jsonContents, err := json.MarshalIndent(returnJson, "", " "); err != nil {
 		logrus.Errorf("error serializing json: %s", err)
 	} else if err := jsonFilePath.WriteFile(jsonContents); err != nil {
-		logrus.Errorf("error writing result.json: %s", err)
+		logrus.Errorf("error writing %s: %s", jsonFilePath.Base(), err)
 	} else {
 		logrus.Infof("created new file in: %s", jsonFilePath)
 	}
@@ -247,4 +326,22 @@ func parseCliCompileOutput(cmdOutToParse []byte) (paths.PathList, *ResultJson) {
 	}
 
 	return sketchFilesPaths, &returnJson
+}
+
+// parseCliCompileOutputShowProp function takes cmdOutToParse as argument,
+// cmdOutToParse is the output of the command run
+// the function extract the value corresponding to `build.mcu` key
+// that string is returned if it's found. Otherwise the program exits
+func parseCliCompileOutputShowProp(cmdOutToParse []byte) string {
+	cmdOut := string(cmdOutToParse)
+	lines := strings.Split(cmdOut, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "build.mcu") { // the line should be something like: 'build.mcu=cortex-m0plus'
+			if mcuLine := strings.Split(line, "="); len(mcuLine) == 2 {
+				return mcuLine[1]
+			}
+		}
+	}
+	logrus.Fatal("cannot find \"build.mcu\" in arduino-cli output")
+	return ""
 }
