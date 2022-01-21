@@ -7,7 +7,7 @@ It generates a json file in `extra/` folder that contains information regarding 
 In order to run this tool you have to install first the [arduino-cli](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `cslt-tool` won't work.
 Please use a version of the arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
 
-Another requirement is o have [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
+Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
 
 ## Build it
 In order to build `cslt-tool` just use `go build`
@@ -80,9 +80,9 @@ And the content of `libsketch/extra/result.json` is:
 ## How to compile the precompiled sketch
 In order to compile the sketch you have first to install manually the libraries and the core listed in the `<libsketch>/extra/result.json` file.
 
-You can install a library with `arduino-cli lib install LIBRARY[@VERSION_NUMBER]`.
+You can install a library with [`arduino-cli lib install LIBRARY[@VERSION_NUMBER]`](https://arduino.github.io/arduino-cli/0.20/commands/arduino-cli_lib_install/).
 
-You can install a core with `arduino-cli core install PACKAGER:ARCH[@VERSION]`.
+You can install a core with [`arduino-cli core install PACKAGER:ARCH[@VERSION]`](https://arduino.github.io/arduino-cli/0.20/commands/arduino-cli_core_install/).
 
 After completing that operation you can compile it with:
 

@@ -93,10 +93,10 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	inoPath := getInoSketchPath(args[0])
 
 	// create a main.cpp file in the same dir of the sketch.ino
-	createMainCpp(*inoPath)
+	createMainCpp(inoPath)
 
 	// replace setup() with _setup() and loop() with _loop() in the user's sketch.ino file
-	oldSketchContent := patchSketch(*inoPath)
+	oldSketchContent := patchSketch(inoPath)
 
 	// let's call arduino-cli compile and parse the verbose output
 	cmdArgs := []string{"compile", "-b", fqbn, inoPath.String(), "-v", "--format", "json"}
@@ -121,10 +121,10 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	buildMcu := parseCliCompileOutputShowProp(cmdOutput)
 
 	// remove main.cpp file, we don't need it anymore
-	removeMainCpp(*inoPath)
+	removeMainCpp(inoPath)
 
 	// restore the sketch content, this allows us to rerun cslt-tool if we want without breaking the compile process
-	createFile(*inoPath, string(oldSketchContent))
+	createFile(inoPath, string(oldSketchContent))
 	logrus.Infof("restored %s", inoPath.String())
 
 	sketchName := strings.TrimSuffix(inoPath.Base(), inoPath.Ext())
@@ -209,7 +209,7 @@ func getInoSketchPath(argSketchPath string) (inoPath *paths.Path) {
 // createMainCpp function, as the name suggests. will create a main.cpp file inside inoPath
 // we do this because setup() and loop() functions will be replaced inside the ino file, in order to allow the linking afterwards
 // creating this file is mandatory, we include also Arduino.h because it's a step done by the builder during the building phase, but only for ino files
-func createMainCpp(inoPath paths.Path) {
+func createMainCpp(inoPath *paths.Path) {
 	// the main.cpp contains the following:
 	mainCpp := `#include "Arduino.h"
 void _setup();
@@ -223,13 +223,13 @@ void loop() {
 _loop();
 }`
 	mainCppPath := inoPath.Parent().Join("main.cpp")
-	createFile(*mainCppPath, mainCpp)
+	createFile(mainCppPath, mainCpp)
 }
 
 // removeMainCpp function, as the name suggests. will remove a main.cpp file inside inoPath
 // we do this after the compile has been completed, this way we can rerun cslt-tool again.
 // If we do not remove this file and run the compile again it will fail because a main.cpp file with the same definitions is already present
-func removeMainCpp(inoPath paths.Path) {
+func removeMainCpp(inoPath *paths.Path) {
 	mainCppPath := inoPath.Parent().Join("main.cpp")
 	if err := os.Remove(mainCppPath.String()); err != nil {
 		logrus.Warn(err)
@@ -241,7 +241,7 @@ func removeMainCpp(inoPath paths.Path) {
 // patchSketch function will modify the content of the inoPath sketch passed as argument,
 // the old unmodified sketch content is returned as oldSketchContent,
 // we do this to allow the compile process to succeed
-func patchSketch(inoPath paths.Path) (oldSketchContent []byte) {
+func patchSketch(inoPath *paths.Path) (oldSketchContent []byte) {
 	oldSketchContent, err := os.ReadFile(inoPath.String())
 	if err != nil {
 		logrus.Fatal(err)
@@ -318,7 +318,7 @@ version=1.0
 precompiled=true`
 
 	libraryPropertyPath := libDir.Join("library.properties")
-	createFile(*libraryPropertyPath, libraryProperties)
+	createFile(libraryPropertyPath, libraryProperties)
 
 	// we calculate the #include part to append at the beginning of the header file here with all the libraries used by the original sketch
 	var librariesIncludes []string
@@ -337,7 +337,7 @@ void _setup();
 void _loop();`
 
 	libsketchFilePath := srcDir.Parent().Join("lib" + sketchName + ".h")
-	createFile(*libsketchFilePath, libsketchHeader)
+	createFile(libsketchFilePath, libsketchHeader)
 
 	// create the sketch file in the example dir of the lib
 	// This one will include the libsketch.h and basically is the replacement of main.cpp
@@ -350,7 +350,7 @@ void loop() {
 	_loop();
 }`
 	sketchFilePath := exampleDir.Join(sketchName + ".ino")
-	createFile(*sketchFilePath, sketchFile)
+	createFile(sketchFilePath, sketchFile)
 
 	// run gcc-ar to create an archive containing all the object files except the main.cpp.o (we don't need it because we have created a substitute of it before ⬆️)
 	// we exclude the main.cpp.o because we are going to link the archive libsketch.a against sketchName.ino
@@ -382,7 +382,7 @@ void loop() {
 // it takes filePath and fileContent as arguments,
 // filePath points to the location where to save the file
 // fileContent,as the name suggests, include the content of the file
-func createFile(filePath paths.Path, fileContent string) {
+func createFile(filePath *paths.Path, fileContent string) {
 	err := os.WriteFile(filePath.String(), []byte(fileContent), 0644)
 	if err != nil {
 		logrus.Fatal(err)
