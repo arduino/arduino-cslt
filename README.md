@@ -15,6 +15,8 @@ In order to build `cslt-tool` just use `go build`
 ## Usage
 `./cslt-tool compile -b <fqbn> <sketch_path>`
 
+[![asciicast](https://asciinema.org/a/463342.svg)](https://asciinema.org/a/463342)
+
 For example, running `./cslt-tool compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino` should produce a library with the following structure, in the current working directory:
 ```
 libsketch/
