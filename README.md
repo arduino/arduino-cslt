@@ -1,11 +1,11 @@
 # cslt-tool
 
 `cslt-tool` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library in the current working directory.
-It generates a json file in `extra/` folder that contains information regarding libraries and core to use in order to build the sketch. The result is achieved by parsing the verbose output of `arduino-cli` and by using [GNU ar](https://sourceware.org/binutils/docs/binutils/ar.html) to generate an archive of the object files.
+It generates a json file in the `extras/` folder that contains information regarding libraries and core to use in order to build the sketch. The result is achieved by parsing the verbose output of `arduino-cli` and by using [GNU ar](https://sourceware.org/binutils/docs/binutils/ar.html) to generate an archive of the object files.
 
 ## Prequisites
-In order to run this tool you have to install first the [arduino-cli](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `cslt-tool` won't work.
-Please use a version of the arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
+In order to run this tool you have to install first the [Arduino CLI](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `cslt-tool` won't work.
+Please use a version of the Arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
 
 Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
 
@@ -21,7 +21,7 @@ libsketch/
 ├── examples
 │   └── sketch
 │       └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
-├── extra
+├── extras
 │   └── result.json
 ├── library.properties
 └── src
@@ -31,7 +31,7 @@ libsketch/
 ```
 
 This is an example execution:
-``` bash
+```
 $ ./cslt-tool compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino
 INFO[0000] arduino-cli version: git-snapshot            
 INFO[0000] GNU ar (GNU Binutils) 2.37                   
@@ -48,10 +48,10 @@ INFO[0001] created libsketch/src/libsketch.h
 INFO[0001] created libsketch/examples/sketch/sketch.ino 
 INFO[0001] running: gcc-ar rcs libsketch/src/cortex-m0plus/libsketch.a /tmp/arduino-sketch-E4D76B1781E9EB73A7B3491CAC68F374/sketch/sketch.ino.cpp.o 
 INFO[0001] created libsketch/src/cortex-m0plus/libsketch.a 
-INFO[0001] created libsketch/extra/result.json
+INFO[0001] created libsketch/extras/result.json
 ```
 
-And the content of `libsketch/extra/result.json` is:
+And the content of `libsketch/extras/result.json` is:
 ```json
 {
  "coreInfo": {
@@ -78,20 +78,20 @@ And the content of `libsketch/extra/result.json` is:
 ```
 
 ## How to compile the precompiled sketch
-In order to compile the sketch you have first to install manually the libraries and the core listed in the `<libsketch>/extra/result.json` file.
+In order to compile the sketch you have first to install manually the libraries and the core listed in the `<libsketch>/extras/result.json` file.
 
-You can install a library with [`arduino-cli lib install LIBRARY[@VERSION_NUMBER]`](https://arduino.github.io/arduino-cli/0.20/commands/arduino-cli_lib_install/).
+You can install a library with [`arduino-cli lib install LIBRARY[@VERSION_NUMBER]`](https://arduino.github.io/arduino-cli/latest/commands/arduino-cli_lib_install/).
 
-You can install a core with [`arduino-cli core install PACKAGER:ARCH[@VERSION]`](https://arduino.github.io/arduino-cli/0.20/commands/arduino-cli_core_install/).
+You can install a core with [`arduino-cli core install PACKAGER:ARCH[@VERSION]`](https://arduino.github.io/arduino-cli/latest/commands/arduino-cli_core_install/).
 
 After completing that operation you can compile it with:
 
 `arduino-cli compile -b <fqbn> <libsketch>/examples/sketch/sketch.ino --library <libsketch>`.
 
-It's important to use the `--library` flag to include the precompiled library generated with cslt-tool otherwise the arduino CLI won't find it.
+It's important to use the `--library` flag to include the precompiled library generated with cslt-tool otherwise the Arduino CLI won't find it.
 
 For example a legit execution looks like this:
-``` bash
+```
 $ arduino-cli compile -b arduino:samd:mkrwifi1010 libsketch/examples/sketch/sketch.ino --library libsketch/
 
 Library libsketch has been declared precompiled:

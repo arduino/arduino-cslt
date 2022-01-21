@@ -198,7 +198,7 @@ func getInoSketchPath(argSketchPath string) (inoPath *paths.Path) {
 		if len(files) == 0 {
 			logrus.Fatal("the sketch path specified does not contain an .ino file")
 		} else if len(files) > 1 {
-			logrus.Fatalf("the sketch path specified contains multiple .ino files:\n %s \nIn order to make the magic please use the path of the .ino file containing the setup() and loop() functions", strings.Join(files.AsStrings(), "\n"))
+			logrus.Fatalf("the sketch path specified contains multiple .ino files:\n%s\nIn order to make the magic please use the path of the .ino file containing the setup() and loop() functions", strings.Join(files.AsStrings(), "\n"))
 		}
 		inoPath = files[0]
 	}
@@ -273,7 +273,7 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	// ├── examples
 	// │   └── sketch
 	// │       └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
-	// ├── extra
+	// ├── extras
 	// │   └── result.json
 	// ├── library.properties
 	// └── src
@@ -302,7 +302,7 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	if err = exampleDir.MkdirAll(); err != nil {
 		logrus.Fatal(err)
 	}
-	extraDir := libDir.Join("extra")
+	extraDir := libDir.Join("extras")
 	if err = extraDir.Mkdir(); err != nil {
 		logrus.Fatal(err)
 	}
@@ -312,9 +312,12 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	// create a library.properties file in the root dir of the lib
 	// the library.properties contains the following:
 	libraryProperties := `name=` + sketchName + `
-sentence=This tecnically is not a library but a precompiled sketch. The result is produced using ` + os.Args[0] + `
+author=TODO
+maintainer=TODO
+sentence=This technically is not a library but a precompiled sketch. The result is produced using ` + os.Args[0] + `
+paragraph=
 url=https://github.com/arduino/cslt-tool
-version=1.0
+version=1.0.0
 precompiled=true`
 
 	libraryPropertyPath := libDir.Join("library.properties")
@@ -344,10 +347,10 @@ void _loop();`
 	// the sketch.ino contains the following:
 	sketchFile := `#include <` + "lib" + sketchName + `.h>
 void setup() {
-	_setup();
+  _setup();
 }
 void loop() {
-	_loop();
+  _loop();
 }`
 	sketchFilePath := exampleDir.Join(sketchName + ".ino")
 	createFile(sketchFilePath, sketchFile)
