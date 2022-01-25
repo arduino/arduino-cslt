@@ -12,8 +12,8 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "cslt-tool",
-	Short: "cslt-tool is a command-line tool that uses the Arduino CLI to generate objectfiles and a json file with info regarding core and libraries used",
+	Use:   "arduino-cslt",
+	Short: "arduino-cslt is a command-line tool that uses the Arduino CLI to generate objectfiles and a json file with info regarding core and libraries used",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

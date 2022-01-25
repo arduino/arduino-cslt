@@ -1,23 +1,23 @@
-# cslt-tool
+# arduino-cslt
 
-`cslt-tool` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library in the current working directory.
+`arduino-cslt` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library in the current working directory.
 It generates a json file in the `extras/` folder that contains information regarding libraries and core to use in order to build the sketch. The result is achieved by parsing the verbose output of `arduino-cli` and by using [GNU ar](https://sourceware.org/binutils/docs/binutils/ar.html) to generate an archive of the object files.
 
 ## Prequisites
-In order to run this tool you have to install first the [Arduino CLI](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `cslt-tool` won't work.
+In order to run this tool you have to install first the [Arduino CLI](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `arduino-cslt` won't work.
 Please use a version of the Arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
 
 Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
 
 ## Build it
-In order to build `cslt-tool` just use `go build`
+In order to build `arduino-cslt` just use `go build`
 
 ## Usage
-`./cslt-tool compile -b <fqbn> <sketch_path>`
+`./arduino-cslt compile -b <fqbn> <sketch_path>`
 
 [![asciicast](https://asciinema.org/a/463342.svg)](https://asciinema.org/a/463342)
 
-For example, running `./cslt-tool compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino` should produce a library with the following structure, in the current working directory:
+For example, running `./arduino-cslt compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino` should produce a library with the following structure, in the current working directory:
 ```
 libsketch/
 ├── examples
@@ -34,7 +34,7 @@ libsketch/
 
 This is an example execution:
 ```
-$ ./cslt-tool compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino
+$ ./arduino-cslt compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino
 INFO[0000] arduino-cli version: git-snapshot            
 INFO[0000] GNU ar (GNU Binutils) 2.37                   
 INFO[0000] the ino file path is sketch/sketch.ino 
@@ -90,7 +90,7 @@ After completing that operation you can compile it with:
 
 `arduino-cli compile -b <fqbn> <libsketch>/examples/sketch/sketch.ino --library <libsketch>`.
 
-It's important to use the `--library` flag to include the precompiled library generated with cslt-tool otherwise the Arduino CLI won't find it.
+It's important to use the `--library` flag to include the precompiled library generated with arduino-cslt otherwise the Arduino CLI won't find it.
 
 For example a legit execution looks like this:
 ```

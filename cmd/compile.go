@@ -123,7 +123,7 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	// remove main.cpp file, we don't need it anymore
 	removeMainCpp(inoPath)
 
-	// restore the sketch content, this allows us to rerun cslt-tool if we want without breaking the compile process
+	// restore the sketch content, this allows us to rerun arduino-cslt if we want without breaking the compile process
 	createFile(inoPath, string(oldSketchContent))
 	logrus.Infof("restored %s", inoPath.String())
 
@@ -227,7 +227,7 @@ _loop();
 }
 
 // removeMainCpp function, as the name suggests. will remove a main.cpp file inside inoPath
-// we do this after the compile has been completed, this way we can rerun cslt-tool again.
+// we do this after the compile has been completed, this way we can rerun arduino-cslt again.
 // If we do not remove this file and run the compile again it will fail because a main.cpp file with the same definitions is already present
 func removeMainCpp(inoPath *paths.Path) {
 	mainCppPath := inoPath.Parent().Join("main.cpp")
@@ -316,7 +316,7 @@ author=TODO
 maintainer=TODO
 sentence=This technically is not a library but a precompiled sketch. The result is produced using ` + os.Args[0] + `
 paragraph=
-url=https://github.com/arduino/cslt-tool
+url=https://github.com/arduino/arduino-cslt
 version=1.0.0
 precompiled=true`
 
