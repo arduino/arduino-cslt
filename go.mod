@@ -1,4 +1,4 @@
-module cslt-tool
+module arduino-cslt
 
 go 1.17
 
