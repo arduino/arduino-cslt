@@ -15,7 +15,6 @@ version: "3"
 # * VERSION: the version of the project, used in package name and checksum file
 # * LD_FLAGS: flags used at build time
 #
-# The project MUST contain a LICENSE.txt file in the root folder or packaging will fail.
 
 vars:
   CHECKSUM_FILE: "{{.VERSION}}-checksums.txt"
@@ -43,7 +42,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        zip {{.PACKAGE_NAME}} {{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe ../LICENSE.txt -j
+        zip {{.PACKAGE_NAME}} {{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe -j
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_windows_386"
@@ -59,7 +58,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        zip {{.PACKAGE_NAME}} {{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe ../LICENSE.txt -j
+        zip {{.PACKAGE_NAME}} {{.PLATFORM_DIR}}/{{.PROJECT_NAME}}.exe -j
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_windows_amd64"
@@ -76,7 +75,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_linux_amd32"
@@ -92,7 +91,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_linux_amd64"
@@ -109,7 +108,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_linux_arm_7"
@@ -126,7 +125,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_linux_arm_6"
@@ -142,7 +141,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_linux_arm_64"
@@ -158,7 +157,7 @@ tasks:
       - |
         go build -o {{.DIST_DIR}}/{{.PLATFORM_DIR}}/{{.PROJECT_NAME}} {{.LDFLAGS}}
         cd {{.DIST_DIR}}
-        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -C ../.. LICENSE.txt  -f {{.PACKAGE_NAME}}
+        tar cz -C {{.PLATFORM_DIR}} {{.PROJECT_NAME}} -f {{.PACKAGE_NAME}}
         sha256sum {{.PACKAGE_NAME}} >> {{.CHECKSUM_FILE}}
     vars:
       PLATFORM_DIR: "{{.PROJECT_NAME}}_osx_darwin_amd64"
