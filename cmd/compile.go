@@ -55,17 +55,17 @@ var compileCmd = &cobra.Command{
 	Use:   "compile",
 	Short: "Compiles Arduino sketches producing a precompiled library.",
 	Long: `Compiles Arduino sketches producing a precompiled library:
-	// sketch-dist/
-	// ├── libsketch
-	// │   ├── extras
-	// │   │   └── result.json
-	// │   ├── library.properties
-	// │   └── src
-	// │       ├── cortex-m0plus
-	// │       │   └── libsketch.a
-	// │       └── libsketch.h
-	// └── sketch
-	//     └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
+	sketch-dist/
+	├── libsketch
+	│   ├── extras
+	│   │   └── result.json
+	│   ├── library.properties
+	│   └── src
+	│       ├── cortex-m0plus
+	│       │   └── libsketch.a
+	│       └── libsketch.h
+	└── sketch
+	    └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
 
 	The result.json file contains information regarding libraries and core to use in order to reproduce the original build environment`,
 	Example: os.Args[0] + `compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino`,
@@ -300,7 +300,9 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	}
 	rootDir := workingDir.Join("sketch-dist")
 	if rootDir.Exist() { // if the dir already exixst we clean it before
-		os.RemoveAll(rootDir.String())
+		if err = rootDir.RemoveAll(); err != nil {
+			logrus.Fatalf("cannot remove %s: %s", rootDir.String(), err)
+		}
 		logrus.Warnf("removed %s", rootDir.String())
 	}
 	if err = rootDir.Mkdir(); err != nil {
