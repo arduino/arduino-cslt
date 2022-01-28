@@ -1,6 +1,6 @@
 # arduino-cslt
 
-`arduino-cslt` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library in the current working directory.
+`arduino-cslt` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library under `sketch-dist/` folder created in the current working directory.
 It generates a json file in the `extras/` folder that contains information regarding libraries and core to use in order to build the sketch. The result is achieved by parsing the verbose output of `arduino-cli` and by using [GNU ar](https://sourceware.org/binutils/docs/binutils/ar.html) to generate an archive of the object files.
 
 ## Prequisites
@@ -10,7 +10,7 @@ Please use a version of the Arduino CLI that has [this](https://github.com/ardui
 Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
 
 ## Build it
-In order to build `arduino-cslt` just use `go build`
+In order to build `arduino-cslt` just use `task go:build`
 
 ## Usage
 `./arduino-cslt compile -b <fqbn> <sketch_path>`
@@ -19,17 +19,17 @@ In order to build `arduino-cslt` just use `go build`
 
 For example, running `./arduino-cslt compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino` should produce a library with the following structure, in the current working directory:
 ```
-libsketch/
-├── examples
-│   └── sketch
-│       └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
-├── extras
-│   └── result.json
-├── library.properties
-└── src
-    ├── cortex-m0plus
-    │   └── libsketch.a
-    └── libsketch.h
+sketch-dist/
+├── libsketch
+│   ├── extras
+│   │   └── result.json
+│   ├── library.properties
+│   └── src
+│       ├── cortex-m0plus
+│       │   └── libsketch.a
+│       └── libsketch.h
+└── sketch
+    └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
 ```
 
 This is an example execution:
@@ -45,15 +45,15 @@ INFO[0000] running: arduino-cli compile -b arduino:samd:mkrwifi1010 sketch/sketc
 INFO[0001] removed sketch/main.cpp 
 INFO[0001] created sketch/sketch.ino 
 INFO[0001] restored sketch/sketch.ino 
-INFO[0001] created libsketch/library.properties 
-INFO[0001] created libsketch/src/libsketch.h 
-INFO[0001] created libsketch/examples/sketch/sketch.ino 
-INFO[0001] running: gcc-ar rcs libsketch/src/cortex-m0plus/libsketch.a /tmp/arduino-sketch-E4D76B1781E9EB73A7B3491CAC68F374/sketch/sketch.ino.cpp.o 
-INFO[0001] created libsketch/src/cortex-m0plus/libsketch.a 
-INFO[0001] created libsketch/extras/result.json
+INFO[0001] created sketch-dist/libsketch/library.properties
+INFO[0001] created sketch-dist/libsketch/src/libsketch.h 
+INFO[0001] created sketch-dist/sketch/sketch.ino 
+INFO[0001] running: gcc-ar rcs sketch-dist/libsketch/src/cortex-m0plus/libsketch.a /tmp/arduino-sketch-E4D76B1781E9EB73A7B3491CAC68F374/sketch/sketch.ino.cpp.o 
+INFO[0001] created sketch-dist/libsketch/src/cortex-m0plus/libsketch.a 
+INFO[0001] created sketch-dist/libsketch/extras/result.json
 ```
 
-And the content of `libsketch/extras/result.json` is:
+And the content of `sketch-dist/libsketch/extras/result.json` is:
 ```json
 {
  "coreInfo": {
@@ -80,7 +80,7 @@ And the content of `libsketch/extras/result.json` is:
 ```
 
 ## How to compile the precompiled sketch
-In order to compile the sketch you have first to install manually the libraries and the core listed in the `<libsketch>/extras/result.json` file.
+In order to compile the sketch you have first to install manually the libraries and the core listed in the `sketch-dist/<libsketch>/extras/result.json` file.
 
 You can install a library with [`arduino-cli lib install LIBRARY[@VERSION_NUMBER]`](https://arduino.github.io/arduino-cli/latest/commands/arduino-cli_lib_install/).
 
@@ -88,16 +88,16 @@ You can install a core with [`arduino-cli core install PACKAGER:ARCH[@VERSION]`]
 
 After completing that operation you can compile it with:
 
-`arduino-cli compile -b <fqbn> <libsketch>/examples/sketch/sketch.ino --library <libsketch>`.
+`arduino-cli compile -b <fqbn> sketch-dist/sketch/sketch.ino --library sketch-dist/<libsketch>`.
 
 It's important to use the `--library` flag to include the precompiled library generated with arduino-cslt otherwise the Arduino CLI won't find it.
 
 For example a legit execution looks like this:
 ```
-$ arduino-cli compile -b arduino:samd:mkrwifi1010 libsketch/examples/sketch/sketch.ino --library libsketch/
+$ arduino-cli compile -b arduino:samd:mkrwifi1010 sketch-dist/sketch/sketch.ino --library sketch-dist/libsketch/
 
 Library libsketch has been declared precompiled:
-Using precompiled library in libsketch/src/cortex-m0plus
+Using precompiled library in sketch-dist/libsketch/src/cortex-m0plus
 Sketch uses 14636 bytes (5%) of program storage space. Maximum is 262144 bytes.
 Global variables use 3224 bytes (9%) of dynamic memory, leaving 29544 bytes for local variables. Maximum is 32768 bytes.
 ```

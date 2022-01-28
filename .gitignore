@@ -1,4 +1,4 @@
 arduino-cslt
 .vscode
-lib*
+sketch-dist
 dist

@@ -53,10 +53,22 @@ type ResultJson struct {
 // compileCmd represents the compile command
 var compileCmd = &cobra.Command{
 	Use:   "compile",
-	Short: "Compiles Arduino sketches.",
-	Long: `Compiles Arduino sketches outputting an object file and a json file in a build directory
-	The json contains information regarding libraries and core to use in order to build the sketch`,
-	Example: os.Args[0] + `compile -b arduino:avr:uno /home/umberto/Arduino/Blink`,
+	Short: "Compiles Arduino sketches producing a precompiled library.",
+	Long: `Compiles Arduino sketches producing a precompiled library:
+	sketch-dist/
+	├── libsketch
+	│   ├── extras
+	│   │   └── result.json
+	│   ├── library.properties
+	│   └── src
+	│       ├── cortex-m0plus
+	│       │   └── libsketch.a
+	│       └── libsketch.h
+	└── sketch
+	    └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
+
+	The result.json file contains information regarding libraries and core to use in order to reproduce the original build environment`,
+	Example: os.Args[0] + `compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino`,
 	Args:    cobra.ExactArgs(1), // the path of the sketch to build
 	Run:     compileSketch,
 }
@@ -269,28 +281,34 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	// this type of lib, as the type suggest, is already compiled so it only gets linked during the linking phase of a sketch
 	// but we have to create a library folder structure in the current directory:
 
-	// libsketch/
-	// ├── examples
-	// │   └── sketch
-	// │       └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
-	// ├── extras
-	// │   └── result.json
-	// ├── library.properties
-	// └── src
-	//     ├── cortex-m0plus
-	//     │   └── libsketch.a
-	//     └── libsketch.h
+	// sketch-dist/
+	// ├── libsketch
+	// │   ├── extras
+	// │   │   └── result.json
+	// │   ├── library.properties
+	// │   └── src
+	// │       ├── cortex-m0plus
+	// │       │   └── libsketch.a
+	// │       └── libsketch.h
+	// └── sketch
+	//     └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
 
 	// let's create the dir structure
 	workingDir, err := paths.Getwd()
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	libDir := workingDir.Join("lib" + sketchName)
-	if libDir.Exist() { // if the dir already exixst we clean it before
-		os.RemoveAll(libDir.String())
-		logrus.Warnf("removed %s", libDir.String())
+	rootDir := workingDir.Join("sketch-dist")
+	if rootDir.Exist() { // if the dir already exixst we clean it before
+		if err = rootDir.RemoveAll(); err != nil {
+			logrus.Fatalf("cannot remove %s: %s", rootDir.String(), err)
+		}
+		logrus.Warnf("removed %s", rootDir.String())
 	}
+	if err = rootDir.Mkdir(); err != nil {
+		logrus.Fatal(err)
+	}
+	libDir := rootDir.Join("lib" + sketchName)
 	if err = libDir.Mkdir(); err != nil {
 		logrus.Fatal(err)
 	}
@@ -298,8 +316,8 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	if err = srcDir.MkdirAll(); err != nil {
 		logrus.Fatal(err)
 	}
-	exampleDir := libDir.Join("examples").Join(sketchName)
-	if err = exampleDir.MkdirAll(); err != nil {
+	sketchDir := rootDir.Join(sketchName)
+	if err = sketchDir.MkdirAll(); err != nil {
 		logrus.Fatal(err)
 	}
 	extraDir := libDir.Join("extras")
@@ -342,7 +360,7 @@ void _loop();`
 	libsketchFilePath := srcDir.Parent().Join("lib" + sketchName + ".h")
 	createFile(libsketchFilePath, libsketchHeader)
 
-	// create the sketch file in the example dir of the lib
+	// create the sketch file in the sketch-dist dir
 	// This one will include the libsketch.h and basically is the replacement of main.cpp
 	// the sketch.ino contains the following:
 	sketchFile := `#include <` + "lib" + sketchName + `.h>
@@ -352,7 +370,7 @@ void setup() {
 void loop() {
   _loop();
 }`
-	sketchFilePath := exampleDir.Join(sketchName + ".ino")
+	sketchFilePath := sketchDir.Join(sketchName + ".ino")
 	createFile(sketchFilePath, sketchFile)
 
 	// run gcc-ar to create an archive containing all the object files except the main.cpp.o (we don't need it because we have created a substitute of it before ⬆️)
