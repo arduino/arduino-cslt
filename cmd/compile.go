@@ -64,10 +64,9 @@ var compileCmd = &cobra.Command{
 	│       ├── cortex-m0plus
 	│       │   └── libsketch.a
 	│       └── libsketch.h
+	├── README.md  <--contains information regarding libraries and core to install in order to reproduce the original build environment
 	└── sketch
-	    └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
-
-	The result.json file contains information regarding libraries and core to use in order to reproduce the original build environment`,
+	    └── sketch.ino  <-- the actual sketch we can recompile with the arduino-cli later`,
 	Example: os.Args[0] + `compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino`,
 	Args:    cobra.ExactArgs(1), // the path of the sketch to build
 	Run:     compileSketch,
@@ -141,7 +140,7 @@ func compileSketch(cmd *cobra.Command, args []string) {
 
 	sketchName := strings.TrimSuffix(inoPath.Base(), inoPath.Ext())
 	// let's create the library corresponding to the precompiled sketch
-	createLib(sketchName, buildMcu, returnJson, objFilePaths)
+	createLib(sketchName, buildMcu, fqbn, returnJson, objFilePaths)
 }
 
 // parseCliCompileOutput function takes cmdOutToParse as argument,
@@ -274,9 +273,10 @@ func patchSketch(inoPath *paths.Path) (oldSketchContent []byte) {
 // createLib function will take care of creating the library directory structure and files required, for the precompiled library to be recognized as such.
 // sketchName is the name of the sketch without the .ino extension. We use this for the name of the lib.
 // buildMcu is the name of the MCU of the board we have compiled for. The library specifications (https://arduino.github.io/arduino-cli/0.20/library-specification/#precompiled-binaries) requires that the precompiled archive is stored inside a folder with the name of the MCU used during the compile.
+// fqbn is required in order to generate the README.md file with instructions.
 // returnJson is the ResultJson object containing informations regarding core and libraries used during the compile process.
 // objFilePaths is a paths.PathList containing the paths.Paths to all the sketch related object files produced during the compile phase.
-func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFilePaths *paths.PathList) {
+func createLib(sketchName, buildMcu, fqbn string, returnJson *ResultJson, objFilePaths *paths.PathList) {
 	// we are going to leverage the precompiled library infrastructure to make the linking work.
 	// this type of lib, as the type suggest, is already compiled so it only gets linked during the linking phase of a sketch
 	// but we have to create a library folder structure in the current directory:
@@ -290,6 +290,7 @@ func createLib(sketchName string, buildMcu string, returnJson *ResultJson, objFi
 	// │       ├── cortex-m0plus
 	// │       │   └── libsketch.a
 	// │       └── libsketch.h
+	// ├── README.md  <--contains information regarding libraries and core to install in order to reproduce the original build environment
 	// └── sketch
 	//     └── sketch.ino  <-- the actual sketch we are going to compile with the arduino-cli later
 
@@ -372,6 +373,30 @@ void loop() {
 }`
 	sketchFilePath := sketchDir.Join(sketchName + ".ino")
 	createFile(sketchFilePath, sketchFile)
+
+	// generate the commands to run to successfully reproduce the build environment, they will be used as content for the README.md
+	var readmeContent []string
+	readmeContent = append(readmeContent, "`arduino-cli core install "+returnJson.CoreInfo.Id+"@"+returnJson.CoreInfo.Version+"`")
+	for _, readmeLib := range returnJson.LibsInfo {
+		readmeContent = append(readmeContent, "`arduino-cli lib install "+readmeLib.Name+"@"+readmeLib.Version+"`")
+	}
+	// make the paths relative, absolute paths are too long and are different on the user machine
+	sketchFileRelPath, _ := sketchFilePath.RelFrom(workingDir)
+	libRelDir, _ := libDir.RelFrom(workingDir)
+	readmeCompile := "`arduino-cli compile -b " + fqbn + " " + sketchFileRelPath.String() + " --library " + libRelDir.String() + "`"
+
+	//create the README.md file containig instructions regarding what commands to run in order to have again a working binary
+	// the README.md contains the following:
+	readmeMd := `This package contains firmware code loaded in your product. 
+The firmware contains additional code licensed with LGPL clause; in order to re-compile the entire firmware bundle, please execute the following.
+
+## Install core and libraries
+` + strings.Join(readmeContent, "\n") + "\n" + `
+## Compile
+` + readmeCompile + "\n"
+
+	readmeMdPath := rootDir.Join("README.md")
+	createFile(readmeMdPath, readmeMd)
 
 	// run gcc-ar to create an archive containing all the object files except the main.cpp.o (we don't need it because we have created a substitute of it before ⬆️)
 	// we exclude the main.cpp.o because we are going to link the archive libsketch.a against sketchName.ino
