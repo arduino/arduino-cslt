@@ -62,8 +62,7 @@ The firmware contains additional code licensed with LGPL clause; in order to re-
 
 ## Install core and libraries
 `arduino-cli core install arduino:samd@1.8.12`
-`arduino-cli lib install WiFiNINA@1.8.13`
-`arduino-cli lib install SPI@1.0`
+`arduino-cli lib install WiFiNINA@1.8.13 SPI@1.0`
 
 ## Compile
 `arduino-cli compile -b arduino:samd:mkrwifi1010 sketch-dist/sketch/sketch.ino --library sketch-dist/libsketch`

@@ -7,6 +7,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -217,7 +218,7 @@ func getInoSketchPath(argSketchPath string) (inoPath *paths.Path) {
 	return inoPath
 }
 
-// createMainCpp function, as the name suggests. will create a main.cpp file inside inoPath
+// createMainCpp function will create a main.cpp file inside inoPath
 // we do this because setup() and loop() functions will be replaced inside the ino file, in order to allow the linking afterwards
 // creating this file is mandatory, we include also Arduino.h because it's a step done by the builder during the building phase, but only for ino files
 func createMainCpp(inoPath *paths.Path) {
@@ -237,7 +238,7 @@ _loop();
 	createFile(mainCppPath, mainCpp)
 }
 
-// removeMainCpp function, as the name suggests. will remove a main.cpp file inside inoPath
+// removeMainCpp function will remove a main.cpp file inside inoPath
 // we do this after the compile has been completed, this way we can rerun arduino-cslt again.
 // If we do not remove this file and run the compile again it will fail because a main.cpp file with the same definitions is already present
 func removeMainCpp(inoPath *paths.Path) {
@@ -328,7 +329,22 @@ func createLib(sketchName, buildMcu, fqbn string, returnJson *ResultJson, objFil
 
 	// let's create the files
 
-	// create a library.properties file in the root dir of the lib
+	createLibraryPropertiesFile(sketchName, libDir)
+
+	createLibSketchHeaderFile(sketchName, srcDir, returnJson)
+
+	sketchFilePath := createSketchFile(sketchName, sketchDir)
+
+	createReadmeMdFile(sketchFilePath, libDir, workingDir, rootDir, returnJson)
+
+	createArchiveFile(sketchName, objFilePaths, srcDir)
+
+	createResultJsonFile(extraDir, returnJson)
+}
+
+// createLibraryPropertiesFile will create a library.properties file in the libDir,
+// the sketchName is required in order to correctly set the name of the "library"
+func createLibraryPropertiesFile(sketchName string, libDir *paths.Path) {
 	// the library.properties contains the following:
 	libraryProperties := `name=` + sketchName + `
 author=TODO
@@ -342,6 +358,15 @@ precompiled=true`
 	libraryPropertyPath := libDir.Join("library.properties")
 	createFile(libraryPropertyPath, libraryProperties)
 
+}
+
+// createLibSketchHeaderFile will create the libsketch header file,
+// the file will be created in the srcDir
+// This file has predeclarations of _setup() and _loop() functions declared originally in the main.cpp file (which is not included in the .a archive),
+// It is the counterpart of libsketch.a
+// we pass resultJson because from there we can extract infos regarding used libs
+// sketchName is used to name the file
+func createLibSketchHeaderFile(sketchName string, srcDir *paths.Path, returnJson *ResultJson) {
 	// we calculate the #include part to append at the beginning of the header file here with all the libraries used by the original sketch
 	var librariesIncludes []string
 	for _, lib := range returnJson.LibsInfo {
@@ -350,9 +375,6 @@ precompiled=true`
 		}
 	}
 
-	// create the header file in the src/ dir
-	// This file has predeclarations of _setup() and _loop() functions declared originally in the main.cpp file (which is not included in the .a archive),
-	// It is the counterpart of libsketch.a
 	// the libsketch.h contains the following:
 	libsketchHeader := strings.Join(librariesIncludes, "\n") + `
 void _setup();
@@ -360,8 +382,12 @@ void _loop();`
 
 	libsketchFilePath := srcDir.Parent().Join("lib" + sketchName + ".h")
 	createFile(libsketchFilePath, libsketchHeader)
+}
 
-	// create the sketch file in the sketch-dist dir
+// createSketchFile will create the sketch which will be the entrypoint of the compilation with the arduino-cli
+// the sketch file will be created in the sketchDir
+// the sketchName argument is used to correctly include the right .h file
+func createSketchFile(sketchName string, sketchDir *paths.Path) *paths.Path {
 	// This one will include the libsketch.h and basically is the replacement of main.cpp
 	// the sketch.ino contains the following:
 	sketchFile := `#include <` + "lib" + sketchName + `.h>
@@ -373,13 +399,20 @@ void loop() {
 }`
 	sketchFilePath := sketchDir.Join(sketchName + ".ino")
 	createFile(sketchFilePath, sketchFile)
+	return sketchFilePath
+}
 
+// createReadmeMdFile is a helper function that is reposnible for the generation of the README.md file containing informations on how to reproduce the build environment
+// it takes the resultJson and some paths.Paths as input to do the required calculations.. The name of the arguments should be sufficient to understand
+func createReadmeMdFile(sketchFilePath, libDir, workingDir, rootDir *paths.Path, returnJson *ResultJson) {
 	// generate the commands to run to successfully reproduce the build environment, they will be used as content for the README.md
 	var readmeContent []string
 	readmeContent = append(readmeContent, "`arduino-cli core install "+returnJson.CoreInfo.Id+"@"+returnJson.CoreInfo.Version+"`")
-	for _, readmeLib := range returnJson.LibsInfo {
-		readmeContent = append(readmeContent, "`arduino-cli lib install "+readmeLib.Name+"@"+readmeLib.Version+"`")
+	libs := []string{}
+	for _, l := range returnJson.LibsInfo {
+		libs = append(libs, l.Name+"@"+l.Version)
 	}
+	readmeContent = append(readmeContent, fmt.Sprintf("`arduino-cli lib install %s`", strings.Join(libs, " ")))
 	// make the paths relative, absolute paths are too long and are different on the user machine
 	sketchFileRelPath, _ := sketchFilePath.RelFrom(workingDir)
 	libRelDir, _ := libDir.RelFrom(workingDir)
@@ -397,8 +430,10 @@ The firmware contains additional code licensed with LGPL clause; in order to re-
 
 	readmeMdPath := rootDir.Join("README.md")
 	createFile(readmeMdPath, readmeMd)
+}
 
-	// run gcc-ar to create an archive containing all the object files except the main.cpp.o (we don't need it because we have created a substitute of it before ⬆️)
+// createArchiveFile function will run `gcc-ar` to create an archive containing all the object files except the main.cpp.o (we don't need it because we have created a substitute of it before: sketchfile.ino)
+func createArchiveFile(sketchName string, objFilePaths *paths.PathList, srcDir *paths.Path) {
 	// we exclude the main.cpp.o because we are going to link the archive libsketch.a against sketchName.ino
 	objFilePaths.FilterOutPrefix("main.cpp")
 	archivePath := srcDir.Join("lib" + sketchName + ".a")
@@ -413,6 +448,10 @@ The firmware contains additional code licensed with LGPL clause; in order to re-
 	} else {
 		logrus.Infof("created %s", archivePath.String())
 	}
+}
+
+// createResultJsonFile will generate the result.json file and save it in extraDir
+func createResultJsonFile(extraDir *paths.Path, returnJson *ResultJson) {
 	// save the result.json in the library extra dir
 	jsonFilePath := extraDir.Join("result.json")
 	if jsonContents, err := json.MarshalIndent(returnJson, "", " "); err != nil {
@@ -427,7 +466,7 @@ The firmware contains additional code licensed with LGPL clause; in order to re-
 // createFile is an helper function useful to create a file,
 // it takes filePath and fileContent as arguments,
 // filePath points to the location where to save the file
-// fileContent,as the name suggests, include the content of the file
+// fileContent include the content of the file
 func createFile(filePath *paths.Path, fileContent string) {
 	err := os.WriteFile(filePath.String(), []byte(fileContent), 0644)
 	if err != nil {
