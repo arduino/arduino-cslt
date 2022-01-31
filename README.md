@@ -3,7 +3,7 @@
 `arduino-cslt` is a convenient wrapper of [arduino-cli](https://github.com/arduino/arduino-cli), it compiles Arduino sketches outputting a precompiled library under `sketch-dist/` folder created in the current working directory.
 It generates a README.md file that contains information regarding libraries and core to use in order to build the sketch. The result is achieved by parsing the verbose output of `arduino-cli` and by using [GNU ar](https://sourceware.org/binutils/docs/binutils/ar.html) to generate an archive of the object files.
 
-## Prequisites
+## Prerequisites
 In order to run this tool you have to install first the [Arduino CLI](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `arduino-cslt` won't work.
 Please use a version of the Arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
 
