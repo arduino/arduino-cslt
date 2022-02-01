@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	semver "go.bug.st/relaxed-semver"
 )
 
 var fqbn string
@@ -90,7 +91,15 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	}
 	var unmarshalledOutput map[string]interface{}
 	json.Unmarshal(cmdOutput, &unmarshalledOutput)
-	logrus.Infof("arduino-cli version: %s", unmarshalledOutput["VersionString"])
+	currentCliVersion := fmt.Sprint(unmarshalledOutput["VersionString"])
+	logrus.Infof("arduino-cli version: %s", currentCliVersion)
+	if strings.Compare(currentCliVersion, "git-snapshot") != 0 {
+		version := semver.ParseRelaxed(currentCliVersion)
+		minimumVersion := semver.ParseRelaxed("0.20.2")
+		if version.LessThanOrEqual(minimumVersion) {
+			logrus.Fatalf("please use a version > %s of the arduino-cli, installed version: %s", minimumVersion, version)
+		}
+	}
 
 	// let's check if gcc-ar version
 	cmdOutput, err = exec.Command("gcc-ar", "--version").CombinedOutput()
