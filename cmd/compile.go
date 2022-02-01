@@ -95,9 +95,9 @@ func compileSketch(cmd *cobra.Command, args []string) {
 	logrus.Infof("arduino-cli version: %s", currentCliVersion)
 	if strings.Compare(currentCliVersion, "git-snapshot") != 0 {
 		version := semver.ParseRelaxed(currentCliVersion)
-		minimumVersion := semver.ParseRelaxed("0.20.2")
-		if version.LessThanOrEqual(minimumVersion) {
-			logrus.Fatalf("please use a version > %s of the arduino-cli, installed version: %s", minimumVersion, version)
+		incompatibleVersion := semver.ParseRelaxed("0.20.2")
+		if version.LessThanOrEqual(incompatibleVersion) {
+			logrus.Fatalf("please use a version > %s of the arduino-cli, installed version: %s", incompatibleVersion, version)
 		}
 	}
 
