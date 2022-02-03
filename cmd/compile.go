@@ -69,7 +69,7 @@ var compileCmd = &cobra.Command{
 	├── README.md  <--contains information regarding libraries and core to install in order to reproduce the original build environment
 	└── sketch
 	    └── sketch.ino  <-- the actual sketch we can recompile with the arduino-cli later`,
-	Example: os.Args[0] + `compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino`,
+	Example: os.Args[0] + ` compile -b arduino:samd:mkrwifi1010 sketch/sketch.ino`,
 	Args:    cobra.ExactArgs(1), // the path of the sketch to build
 	Run:     compileSketch,
 }
