@@ -7,7 +7,11 @@ It generates a README.md file that contains information regarding libraries and 
 In order to run this tool you have to install first the [Arduino CLI](https://github.com/arduino/arduino-cli) and have `arduino-cli` binary in your `$PATH`, otherwise `arduino-cslt` won't work.
 Please use a version of the Arduino CLI that has [this](https://github.com/arduino/arduino-cli/pull/1608) change (version > 0.20.2).
 
-Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) (installable with `apt-get install gcc`) in your `$PATH`.
+Another requirement is [`gcc-ar`](https://sourceware.org/binutils/docs/binutils/ar.html) in your `$PATH`.
+
+- On Linux `gcc-ar` can be obtained by installing GCC (e.g., `apt-get install gcc`).
+- On macOS `gcc-ar` can be obtained by installing `binutils` (e.g. `brew install binutils`) and creating a symlink from `gar` to `gcc-ar` (`ln -s /usr/local/Cellar/binutils/2.39_1/bin/gar /usr/local/bin/gcc-ar`).
+- On Windows `gcc-ar` can be obtained by installing `binutils` (e.g. `scoop install binutils`).
 
 ## Build it
 In order to build `arduino-cslt` just use `task go:build`
